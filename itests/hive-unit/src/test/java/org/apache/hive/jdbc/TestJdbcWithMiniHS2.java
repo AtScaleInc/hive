@@ -24,6 +24,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -32,6 +33,7 @@ import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import com.google.common.cache.Cache;
 
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -39,16 +41,19 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
+import org.apache.hive.common.util.ReflectionUtil;
 import org.apache.hive.jdbc.miniHS2.MiniHS2;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TestJdbcWithMiniHS2 {
   private static MiniHS2 miniHS2 = null;
-  private static Path dataFilePath;
+  private static String dataFileDir;
+  private static Path kvDataFilePath;
   private static final String tmpDir = System.getProperty("test.tmp.dir");
 
   private Connection hs2Conn = null;
@@ -59,9 +64,8 @@ public class TestJdbcWithMiniHS2 {
     HiveConf conf = new HiveConf();
     conf.setBoolVar(ConfVars.HIVE_SUPPORT_CONCURRENCY, false);
     miniHS2 = new MiniHS2(conf);
-    String dataFileDir = conf.get("test.data.files").replace('\\', '/')
-        .replace("c:", "");
-    dataFilePath = new Path(dataFileDir, "kv1.txt");
+    dataFileDir = conf.get("test.data.files").replace('\\', '/').replace("c:", "");
+    kvDataFilePath = new Path(dataFileDir, "kv1.txt");
     Map<String, String> confOverlay = new HashMap<String, String>();
     miniHS2.start(confOverlay);
   }
@@ -101,7 +105,7 @@ public class TestJdbcWithMiniHS2 {
 
     // load data
     stmt.execute("load data local inpath '"
-        + dataFilePath.toString() + "' into table " + tableName);
+        + kvDataFilePath.toString() + "' into table " + tableName);
 
     ResultSet res = stmt.executeQuery("SELECT * FROM " + tableName);
     assertTrue(res.next());
@@ -544,5 +548,101 @@ public class TestJdbcWithMiniHS2 {
       assertEquals("DFS scratch dir permissions don't match", expectedFSPermission,
           fs.getFileStatus(scratchDirPath).getPermission());
     }
+  }
+
+  /**
+   * Tests ADD JAR uses Hives ReflectionUtil.CONSTRUCTOR_CACHE
+   *
+   * @throws Exception
+   */
+  @Test
+  public void testAddJarConstructorUnCaching() throws Exception {
+    // This test assumes the hive-contrib JAR has been built as part of the Hive build.
+    // Also dependent on the UDFExampleAdd class within that JAR.
+    String udfClassName = "org.apache.hadoop.hive.contrib.udf.example.UDFExampleAdd";
+    String mvnRepo = System.getProperty("maven.local.repository");
+    String hiveVersion = System.getProperty("hive.version");
+    String jarFileName = "hive-contrib-" + hiveVersion + ".jar";
+    String[] pathParts = {
+        "org", "apache", "hive",
+        "hive-contrib", hiveVersion, jarFileName
+    };
+
+    // Create path to hive-contrib JAR on local filesystem
+    Path jarFilePath = new Path(mvnRepo);
+    for (String pathPart : pathParts) {
+      jarFilePath = new Path(jarFilePath, pathPart);
+    }
+
+    Connection conn = getConnection(miniHS2.getJdbcURL(), "foo", "bar");
+    String tableName = "testAddJar";
+    Statement stmt = conn.createStatement();
+    stmt.execute("SET hive.support.concurrency = false");
+    // Create table
+    stmt.execute("DROP TABLE IF EXISTS " + tableName);
+    stmt.execute("CREATE TABLE " + tableName + " (key INT, value STRING)");
+    // Load data
+    stmt.execute("LOAD DATA LOCAL INPATH '" + kvDataFilePath.toString() + "' INTO TABLE "
+        + tableName);
+    ResultSet res = stmt.executeQuery("SELECT * FROM " + tableName);
+    // Ensure table is populated
+    assertTrue(res.next());
+
+    long cacheBeforeAddJar;
+    long cacheAfterAddJar;
+    // Force the cache clear so we know its empty
+    invalidateReflectionUtlCache();
+    cacheBeforeAddJar = getReflectionUtilCacheSize();
+    Assert.assertTrue(cacheBeforeAddJar == 0);
+
+    // Add the jar file
+    stmt.execute("ADD JAR " + jarFilePath.toString());
+    // Create a temporary function using the jar
+    stmt.execute("CREATE TEMPORARY FUNCTION func AS '" + udfClassName + "'");
+    // Execute the UDF
+    res = stmt.executeQuery("SELECT func(value) from " + tableName);
+    assertTrue(res.next());
+
+    // Check to make sure the cache is now being used
+    cacheAfterAddJar = getReflectionUtilCacheSize();
+    Assert.assertTrue(cacheAfterAddJar > 0);
+    conn.close();
+  }
+
+  private Cache getReflectionUtilCache() {
+    Field constructorCacheField;
+    try {
+      constructorCacheField = ReflectionUtil.class.getDeclaredField("CONSTRUCTOR_CACHE");
+      if (constructorCacheField != null) {
+        constructorCacheField.setAccessible(true);
+        return (Cache) constructorCacheField.get(null);
+      }
+    } catch (Exception e) {
+      System.out.println(e);
+    }
+    return null;
+  }
+
+  private void invalidateReflectionUtlCache() {
+    try {
+        Cache constructorCache = getReflectionUtilCache();
+        if ( constructorCache != null ) {
+          constructorCache.invalidateAll();
+        }
+    } catch (Exception e) {
+      System.out.println(e);
+    }
+  }
+
+  private long getReflectionUtilCacheSize() {
+    try {
+        Cache constructorCache = getReflectionUtilCache();
+        if ( constructorCache != null ) {
+          return constructorCache.size();
+        }
+    } catch (Exception e) {
+      System.out.println(e);
+    }
+    return -1;
   }
 }
