@@ -378,14 +378,14 @@ public class HadoopThriftAuthBridge {
       }
 
       TSaslServerTransport.Factory transFactory = new TSaslServerTransport.Factory();
+      CallbackHandler callBackHandler = new SaslDigestCallbackHandler(secretManager);
       transFactory.addServerDefinition(
           AuthMethod.KERBEROS.getMechanismName(),
           names[0], names[1],  // two parts of kerberos principal
-          saslProps,
-          new SaslRpcServer.SaslGssCallbackHandler());
+          saslProps, callBackHandler);
       transFactory.addServerDefinition(AuthMethod.DIGEST.getMechanismName(),
           null, SaslRpcServer.SASL_DEFAULT_REALM,
-          saslProps, new SaslDigestCallbackHandler(secretManager));
+          saslProps, callBackHandler);
 
       return new TUGIAssumingTransportFactory(transFactory, realUgi);
     }
@@ -549,10 +549,12 @@ public class HadoopThriftAuthBridge {
 
     /** CallbackHandler for SASL DIGEST-MD5 mechanism */
     // This code is pretty much completely based on Hadoop's
-    // SaslRpcServer.SaslDigestCallbackHandler - the only reason we could not
-    // use that Hadoop class as-is was because it needs a Server.Connection object
-    // which is relevant in hadoop rpc but not here in the metastore - so the
+    // SaslRpcServer.SaslDigestCallbackHandler -
+    // it needs a Server.Connection object which is relevant in
+    // hadoop rpc but not here in the metastore - so the
     // code below does not deal with the Connection Server.object.
+    // It also no longer checks if the authid and authzid are equal
+    // in realm
     static class SaslDigestCallbackHandler implements CallbackHandler {
       private final DelegationTokenSecretManager secretManager;
 
@@ -568,6 +570,7 @@ public class HadoopThriftAuthBridge {
       private char[] encodePassword(byte[] password) {
         return new String(Base64.encodeBase64(password)).toCharArray();
       }
+
       /** {@inheritDoc} */
 
       @Override
@@ -604,20 +607,10 @@ public class HadoopThriftAuthBridge {
         if (ac != null) {
           String authid = ac.getAuthenticationID();
           String authzid = ac.getAuthorizationID();
-          if (authid.equals(authzid)) {
-            ac.setAuthorized(true);
-          } else {
-            ac.setAuthorized(false);
-          }
-          if (ac.isAuthorized()) {
-            if (LOG.isDebugEnabled()) {
-              String username =
-                  SaslRpcServer.getIdentifier(authzid, secretManager).getUser().getUserName();
-              LOG.debug("SASL server DIGEST-MD5 callback: setting "
-                  + "canonicalized client ID: " + username);
-            }
-            ac.setAuthorizedID(authzid);
-          }
+          LOG.debug("Successfully authenticated client: authenticationID=" + authid
+                  + ";  authorizationID=" + authzid + ".");
+          ac.setAuthorized(true);
+          ac.setAuthorizedID(authzid);
         }
       }
     }
