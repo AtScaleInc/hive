@@ -2655,31 +2655,16 @@ private void constructOneLBLocationMap(FileStatus fSta,
             if (srcs.length == 0) {
               success = true; // Nothing to move.
             }
-
-            /* Move files one by one because source is a subdirectory of destination */
             for (FileStatus status : srcs) {
-              Path destFile;
+              success = FileUtils.copy(srcf.getFileSystem(conf), status.getPath(), destf.getFileSystem(conf), destf,
+                  true,     // delete source
+                  replace,  // overwrite destination
+                  conf);
 
-              /* Append the source filename to the destination directory */
-              if (fs.isDirectory(destf)) {
-                destFile = new Path(destf, status.getPath().getName());
-              } else {
-                destFile = destf;
-              }
-
-              // Destination should be replaced, so we delete it first
-              if (fs.exists(destFile)) {
-                if (!fs.delete(destFile, true)) {
-                  throw new HiveException(String.format("File to replace could not be deleted: %s", destFile));
-                }
-              }
-
-              if (!(fs.rename(status.getPath(), destFile))) {
+              if (!success) {
                 throw new HiveException("Unable to move source " + status.getPath() + " to destination " + destf);
               }
             }
-
-            success = true;
           } else {
             success = destFs.rename(srcf, destf);
           }
