@@ -1592,10 +1592,16 @@ private void constructOneLBLocationMap(FileStatus fSta,
           LinkedHashMap<Map<String, String>, Partition>();
 
       FileSystem fs = loadPath.getFileSystem(conf);
-      FileStatus[] leafStatus = HiveStatsUtils.getFileStatusRecurse(loadPath, numDP, fs);
+      FileStatus[] leafStatus = HiveStatsUtils.getFileStatusRecurse(loadPath, numDP+1, fs);
       // Check for empty partitions
       for (FileStatus s : leafStatus) {
-        validPartitions.add(s.getPath());
+        try {
+          validatePartitionNameCharacters(
+            Warehouse.getPartValuesFromPartName(s.getPath().getParent().toString()));
+        } catch (MetaException e) {
+          throw new HiveException(e);
+        }
+        validPartitions.add(s.getPath().getParent());
       }
 
       if (validPartitions.size() == 0) {
