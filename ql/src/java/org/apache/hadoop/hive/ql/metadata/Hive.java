@@ -2745,6 +2745,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
                   SessionState.setCurrentSessionState(parentSession);
                   Path destPath = new Path(destf, status.getPath().getName());
                   try {
+                    LOG.debug("Trying to Rename" +  status.getPath() + "To Dest path:" +destPath);
                     if(destFs.rename(status.getPath(), destf)) {
                       if (inheritPerms) {
                         shims.setFullFileStatus(conf, desiredStatus, destFs, destPath, false);
