@@ -48,6 +48,7 @@ import org.apache.hadoop.hive.conf.Validator.PatternSet;
 import org.apache.hadoop.hive.conf.Validator.RangeValidator;
 import org.apache.hadoop.hive.conf.Validator.RatioValidator;
 import org.apache.hadoop.hive.conf.Validator.StringSet;
+import org.apache.hadoop.hive.conf.Validator.SizeValidator;
 import org.apache.hadoop.hive.conf.Validator.TimeValidator;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.hive.shims.Utils;
@@ -1932,6 +1933,8 @@ public class HiveConf extends Configuration {
 
     HIVE_SECURITY_COMMAND_WHITELIST("hive.security.command.whitelist", "set,reset,dfs,add,list,delete,reload,compile",
         "Comma separated list of non-SQL Hive commands users are authorized to execute"),
+    HIVE_MOVE_FILES_THREAD_COUNT("hive.mv.files.thread", 25, new  SizeValidator(1L, true, 1024L, true), "Number of threads"
+         + " used to move files in move task"),
 
     HIVE_SERVER2_SESSION_CHECK_INTERVAL("hive.server2.session.check.interval", "6h",
         new TimeValidator(TimeUnit.MILLISECONDS, 3000l, true, null, false),
@@ -2492,6 +2495,37 @@ public class HiveConf extends Configuration {
   public static long toTime(String value, TimeUnit inputUnit, TimeUnit outUnit) {
     String[] parsed = parseTime(value.trim());
     return outUnit.convert(Long.valueOf(parsed[0].trim().trim()), unitFor(parsed[1].trim(), inputUnit));
+  }
+
+  public static long multiplierFor(String unit) {
+    unit = unit.trim().toLowerCase();
+    if (unit.isEmpty() || unit.equals("b") || unit.equals("bytes")) {
+      return 1;
+    } else if (unit.equals("kb")) {
+      return 1024;
+    } else if (unit.equals("mb")) {
+      return 1024*1024;
+    } else if (unit.equals("gb")) {
+      return 1024*1024*1024;
+    } else if (unit.equals("tb")) {
+      return 1024*1024*1024*1024;
+    } else if (unit.equals("pb")) {
+      return 1024*1024*1024*1024*1024;
+    }
+    throw new IllegalArgumentException("Invalid size unit " + unit);
+  }
+
+  public static long toSizeBytes(String value) {
+    String[] parsed = parseNumberFollowedByUnit(value.trim());
+    return Long.parseLong(parsed[0].trim()) * multiplierFor(parsed[1].trim());
+  }
+
+  private static String[] parseNumberFollowedByUnit(String value) {
+    char[] chars = value.toCharArray();
+    int i = 0;
+    for (; i < chars.length && (chars[i] == '-' || Character.isDigit(chars[i])); i++) {
+    }
+    return new String[] {value.substring(0, i), value.substring(i)};
   }
 
   private static String[] parseTime(String value) {
