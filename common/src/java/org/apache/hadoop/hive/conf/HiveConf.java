@@ -2177,7 +2177,11 @@ public class HiveConf extends Configuration {
     NWAYJOINREORDER("hive.reorder.nway.joins", true,
       "Runs reordering of tables within single n-way join (i.e.: picks streamtable)"),
     HIVE_LOG_N_RECORDS("hive.log.every.n.records", 0L, new RangeValidator(0L, null),
-      "If value is greater than 0 logs in fixed intervals of size n rather than exponentially.");
+      "If value is greater than 0 logs in fixed intervals of size n rather than exponentially."),
+    HIVE_BLOBSTORE_SUPPORTED_SCHEMES("hive.blobstore.supported.schemes", "s3,s3a,s3n",
+                                             "Comma-separated list of supported blobstore schemes."),
+    HIVE_BLOBSTORE_USE_BLOBSTORE_AS_SCRATCHDIR("hive.blobstore.use.blobstore.as.scratchdir", false,
+        "Enable the use of scratch directories directly on blob storage systems (it may cause performance penalties).");
 
     public final String varname;
     private final String defaultExpr;
