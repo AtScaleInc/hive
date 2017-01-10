@@ -20,8 +20,7 @@ package org.apache.hadoop.hive.ql.lockmgr;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.common.JavaUtils;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
-import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.SynchronizedMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.*;
 import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.thrift.TException;
@@ -44,10 +43,10 @@ public class DbLockManager implements HiveLockManager{
   private static final long MAX_SLEEP = 15000;
   private HiveLockManagerCtx context;
   private Set<DbHiveLock> locks;
-  private IMetaStoreClient client;
+  private SynchronizedMetaStoreClient client;
   private long nextSleep = 50;
 
-  DbLockManager(IMetaStoreClient client) {
+  DbLockManager(SynchronizedMetaStoreClient client) {
     locks = new HashSet<DbHiveLock>();
     this.client = client;
   }

@@ -2181,7 +2181,10 @@ public class HiveConf extends Configuration {
     HIVE_BLOBSTORE_SUPPORTED_SCHEMES("hive.blobstore.supported.schemes", "s3,s3a,s3n",
                                              "Comma-separated list of supported blobstore schemes."),
     HIVE_BLOBSTORE_USE_BLOBSTORE_AS_SCRATCHDIR("hive.blobstore.use.blobstore.as.scratchdir", false,
-        "Enable the use of scratch directories directly on blob storage systems (it may cause performance penalties).");
+        "Enable the use of scratch directories directly on blob storage systems (it may cause performance penalties)."),
+    HIVE_LOAD_DYNAMIC_PARTITIONS_THREAD_COUNT("hive.load.dynamic.partitions.thread", 15,
+        new  SizeValidator(1L, true, 1024L, true),
+        "Number of threads used to load dynamic partitions.");
 
     public final String varname;
     private final String defaultExpr;
