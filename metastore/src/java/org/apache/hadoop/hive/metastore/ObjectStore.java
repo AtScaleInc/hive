@@ -1901,8 +1901,7 @@ public class ObjectStore implements RawStore, Configurable {
     List<FieldSchema> partCols = table.getPartitionKeys();
     int numPartKeys = partCols.size();
     if (part_vals.size() > numPartKeys) {
-      throw new MetaException("Incorrect number of partition values."
-          + " numPartKeys=" + numPartKeys + ", part_val=" + part_vals.size());
+      throw new MetaException("Incorrect number of partition values");
     }
 
     partCols = partCols.subList(0, part_vals.size());

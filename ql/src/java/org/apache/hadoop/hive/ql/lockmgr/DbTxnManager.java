@@ -21,7 +21,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.common.ValidTxnList;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.SynchronizedMetaStoreClient;
+import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.LockComponentBuilder;
 import org.apache.hadoop.hive.metastore.LockRequestBuilder;
 import org.apache.hadoop.hive.metastore.api.*;
@@ -49,7 +50,7 @@ public class DbTxnManager extends HiveTxnManagerImpl {
   static final private Log LOG = LogFactory.getLog(CLASS_NAME);
 
   private DbLockManager lockMgr = null;
-  private SynchronizedMetaStoreClient client = null;
+  private IMetaStoreClient client = null;
   private long txnId = 0;
   /**
    * assigns a unique monotonically increasing ID to each statement
@@ -366,7 +367,7 @@ public class DbTxnManager extends HiveTxnManagerImpl {
       }
       try {
         Hive db = Hive.get(conf);
-        client = new SynchronizedMetaStoreClient(db.getMSC());
+        client = db.getMSC();
       } catch (MetaException e) {
         throw new LockException(ErrorMsg.METASTORE_COULD_NOT_INITIATE.getMsg(), e);
       } catch (HiveException e) {
