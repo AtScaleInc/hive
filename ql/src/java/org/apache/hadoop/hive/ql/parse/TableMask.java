@@ -116,7 +116,7 @@ public class TableMask {
         sb.append(expr);
       }
     }
-    sb.append(" FROM " + privObject.getObjectName());
+    sb.append(" FROM " + privObject.getDbname() + "." + privObject.getObjectName() );
     sb.append(" " + maskAndFilterInfo.additionalTabInfo);
     String filter = privObject.getRowFilterExpression();
     if (filter != null) {

@@ -43,6 +43,7 @@ import java.util.regex.PatternSyntaxException;
 import org.antlr.runtime.ClassicToken;
 import org.antlr.runtime.CommonToken;
 import org.antlr.runtime.Token;
+import org.antlr.runtime.TokenRewriteStream;
 import org.antlr.runtime.tree.Tree;
 import org.antlr.runtime.tree.TreeWizard;
 import org.antlr.runtime.tree.TreeWizard.ContextVisitor;
@@ -752,7 +753,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     Path dataDir = null;
     if(!qb.getEncryptedTargetTablePaths().isEmpty()) {
       //currently only Insert into T values(...) is supported thus only 1 values clause
-      //and only 1 target table are possible.  If/when support for 
+      //and only 1 target table are possible.  If/when support for
       //select ... from values(...) is added an insert statement may have multiple
       //encrypted target tables.
       dataDir = ctx.getMRTmpPath(qb.getEncryptedTargetTablePaths().get(0).toUri());
@@ -10142,12 +10143,49 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     }
   }
 
+
+    private class BacktickAdder {
+      private final TokenRewriteStream trs;
+      BacktickAdder(TokenRewriteStream trs) {
+        this.trs = trs;
+      }
+      private void visit(ASTNode n) {
+        if (n.getType() == HiveParser.Identifier) {
+          if (n.getParent().getType() == HiveParser.TOK_SELEXPR ||
+             (n.getParent().getType() == HiveParser.TOK_TABLE_OR_COL && (n.getParent().getParent().getType() == HiveParser.TOK_SELEXPR ||
+                                                                         n.getParent().getParent().getType() == HiveParser.TOK_GROUPBY ||
+                                                                         n.getParent().getParent().getType() == HiveParser.TOK_TABSORTCOLNAMEASC ||
+                                                                         n.getParent().getParent().getType() == HiveParser.TOK_TABSORTCOLNAMEDESC))
+          ) {
+            int tokIndex = n.getToken().getTokenIndex();
+            if (trs.toString(tokIndex, tokIndex+1).charAt(0) != '`') {
+              if (LOG.isDebugEnabled()) {
+                LOG.debug("ADDING BACKTICKS TO:" + n + ", token=" + n.getToken() + ", txt=" + trs.toString(n.getToken().getTokenIndex(),n.getToken().getTokenIndex()+1) );
+              }
+              trs.insertBefore(n.getToken(), "`");
+              trs.insertAfter(n.getToken(), "`");
+            }
+          }
+        }
+        if (n.getChildCount() > 0) {
+          for (Node c : n.getChildren()) {
+            visit((ASTNode)c);
+          }
+        }
+      }
+    }
+
   // We walk through the AST.
   // We replace all the TOK_TABREF by adding additional masking and filter if
   // the table needs to be masked or filtered.
   // For the replacement, we leverage the methods that are used for
   // unparseTranslator.
   public ASTNode rewriteASTWithMaskAndFilter(ASTNode ast) throws SemanticException {
+
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("DUMPING AST:" + ast.dump());
+    }
+
     // 1. collect information about CTE if there is any.
     // The base table of CTE should be masked.
     // The CTE itself should not be masked in the references in the following main query.
@@ -10185,8 +10223,11 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
     // 2. rewrite the AST, replace TABREF with masking/filtering
     if (tableMask.needsRewrite()) {
       tableMask.applyTableMasking(ctx.getTokenRewriteStream());
-      String rewrittenQuery = ctx.getTokenRewriteStream().toString(ast.getTokenStartIndex(),
-          ast.getTokenStopIndex());
+
+      new BacktickAdder(ctx.getTokenRewriteStream()).visit(ast);
+
+      String rewrittenQuery = ctx.getTokenRewriteStream().toString();
+
       ASTNode rewrittenTree;
       // Parse the rewritten query string
       // check if we need to ctx.setCmd(rewrittenQuery);
@@ -10273,7 +10314,7 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         return;
       }
       for (Node child : node.getChildren()) {
-        //each insert of multi insert looks like 
+        //each insert of multi insert looks like
         //(TOK_INSERT (TOK_INSERT_INTO (TOK_TAB (TOK_TABNAME T1)))
         if (((ASTNode) child).getToken().getType() != HiveParser.TOK_INSERT) {
           continue;
