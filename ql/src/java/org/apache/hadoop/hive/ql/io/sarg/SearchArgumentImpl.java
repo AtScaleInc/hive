@@ -60,6 +60,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 
+import org.apache.hadoop.hive.ql.metadata.HiveException;
+
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
@@ -262,7 +264,7 @@ final class SearchArgumentImpl implements SearchArgument {
       }
     }
 
-    FilterPredicate translate(List<PredicateLeaf> leafs){
+    FilterPredicate translate(List<PredicateLeaf> leafs) throws HiveException {
       FilterPredicate p = null;
       switch (operator) {
         case OR:
@@ -307,7 +309,7 @@ final class SearchArgumentImpl implements SearchArgument {
       }
     }
 
-    private FilterPredicate buildFilterPredicateFromPredicateLeaf(PredicateLeaf leaf) {
+    private FilterPredicate buildFilterPredicateFromPredicateLeaf(PredicateLeaf leaf) throws HiveException {
       LeafFilterFactory leafFilterFactory = new LeafFilterFactory();
       FilterPredicateLeafBuilder builder;
       try {
@@ -327,8 +329,9 @@ final class SearchArgumentImpl implements SearchArgument {
               leaf.getColumnName());
         }
       } catch (Exception e) {
-        LOG.error("fail to build predicate filter leaf with errors" + e, e);
-        return null;
+        String msg = "fail to build predicate filter leaf with errors" + e;
+        LOG.error(msg, e);
+        throw new HiveException(msg, e);
       }
     }
 
@@ -1018,7 +1021,13 @@ final class SearchArgumentImpl implements SearchArgument {
 
   @Override
   public FilterPredicate toFilterPredicate() {
-    return expression.translate(leaves);
+    try {
+      return expression.translate(leaves);
+    }
+    catch( HiveException e ) {
+      LOG.error("Something went wrong building the filter, return a null filter instead.", e);
+      return null;
+    }
   }
 
   private static class BuilderImpl implements Builder {
