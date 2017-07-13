@@ -146,6 +146,9 @@ public class ParquetRecordReaderWrapper  implements RecordReader<Void, ArrayWrit
       return null;
     }
 
+
+LOG.info("PREDICATE THIS: " + serializedPushdown);
+
     FilterPredicate p =
       SearchArgumentFactory.create(Utilities.deserializeExpression(serializedPushdown))
         .toFilterPredicate();
