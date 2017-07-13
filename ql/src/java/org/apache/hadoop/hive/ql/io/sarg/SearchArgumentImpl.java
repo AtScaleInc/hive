@@ -28,8 +28,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.hadoop.hive.ql.metadata.HiveException;
-
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
@@ -264,7 +262,7 @@ final class SearchArgumentImpl implements SearchArgument {
       }
     }
 
-    FilterPredicate translate(List<PredicateLeaf> leafs) throws HiveException{
+    FilterPredicate translate(List<PredicateLeaf> leafs){
       FilterPredicate p = null;
       switch (operator) {
         case OR:
@@ -309,7 +307,7 @@ final class SearchArgumentImpl implements SearchArgument {
       }
     }
 
-    private FilterPredicate buildFilterPredicateFromPredicateLeaf(PredicateLeaf leaf) throws HiveException {
+    private FilterPredicate buildFilterPredicateFromPredicateLeaf(PredicateLeaf leaf) {
       LeafFilterFactory leafFilterFactory = new LeafFilterFactory();
       FilterPredicateLeafBuilder builder;
       try {
@@ -329,9 +327,8 @@ final class SearchArgumentImpl implements SearchArgument {
               leaf.getColumnName());
         }
       } catch (Exception e) {
-        String msg = "fail to build predicate filter leaf with errors" + e;
-        LOG.error(msg, e);
-        throw new HiveException(msg, e);
+        LOG.error("fail to build predicate filter leaf with errors" + e, e);
+        return null;
       }
     }
 
@@ -1021,13 +1018,7 @@ final class SearchArgumentImpl implements SearchArgument {
 
   @Override
   public FilterPredicate toFilterPredicate() {
-    try {
-      return expression.translate(leaves);
-    }
-    catch( HiveException e ) {
-      LOG.debug("Something went wrong building the filter, return a null filter instead.", e);
-      return null;
-    }
+    return expression.translate(leaves);
   }
 
   private static class BuilderImpl implements Builder {

@@ -19,7 +19,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf.Operator;
 
-import org.apache.hadoop.hive.ql.metadata.HiveException;
 import parquet.filter2.predicate.FilterApi;
 import parquet.filter2.predicate.FilterPredicate;
 import parquet.io.api.Binary;
@@ -147,8 +146,7 @@ public class LeafFilterFactory {
    * @param type FilterPredicateType
    * @return
    */
-  public FilterPredicateLeafBuilder getLeafFilterBuilderByType(PredicateLeaf.Type type) throws HiveException {
-    LOG.info("******** LEAF BUILDER TYPE: " + type);
+  public FilterPredicateLeafBuilder getLeafFilterBuilderByType(PredicateLeaf.Type type){
     switch (type){
       case INTEGER:
         return new IntFilterPredicateLeafBuilder();
@@ -164,9 +162,8 @@ public class LeafFilterFactory {
       case DECIMAL:
       case TIMESTAMP:
       default:
-        String msg = "Conversion to Parquet FilterPredicate not supported for " + type;
-        LOG.debug(msg);
-        throw new HiveException(msg);
+        LOG.debug("Conversion to Parquet FilterPredicate not supported for " + type);
+        return null;
     }
   }
 }
