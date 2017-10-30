@@ -1466,6 +1466,7 @@ public class SessionState {
   public void close() throws IOException {
     registry.clear();
     if (txnMgr != null) txnMgr.closeTxnManager();
+    delete_resources(ResourceType.JAR);
     JavaUtils.closeClassLoadersTo(conf.getClassLoader(), parentLoader);
     File resourceDir =
         new File(getConf().getVar(HiveConf.ConfVars.DOWNLOADED_RESOURCES_DIR));
